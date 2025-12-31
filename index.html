@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>學習追蹤 (拖曳排序版)</title>
+    <title>學習追蹤 (自動加總版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <style>
         :root {
@@ -15,6 +15,7 @@
             --success: #10b981;
             --danger: #ef4444;
             --time-bar: #9ca3af;
+            --disabled-bg: #f9fafb;
         }
 
         body {
@@ -57,10 +58,7 @@
 
         #sync-status { font-size: 0.85rem; margin-right: 10px; color: #666; }
 
-        /* 列表樣式調整 */
-        .item-list { 
-            list-style: none; padding: 0; min-height: 10px; /* 讓空列表也能被拖入 */
-        }
+        .item-list { list-style: none; padding: 0; min-height: 10px; }
         
         .item-node {
             background: var(--card-bg);
@@ -70,39 +68,23 @@
             overflow: hidden;
             transition: box-shadow 0.2s;
         }
-        /* 拖曳時的效果 */
         .sortable-ghost { opacity: 0.4; background: #eef2ff; border: 1px dashed var(--primary); }
         .sortable-drag { opacity: 1; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
 
-        .item-header {
-            padding: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-        }
+        .item-header { padding: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
-        /* 拖曳手把 */
-        .drag-handle {
-            cursor: move; color: #9ca3af; font-size: 1.2rem;
-            padding: 0 5px; user-select: none;
-        }
+        .drag-handle { cursor: move; color: #9ca3af; font-size: 1.2rem; padding: 0 5px; user-select: none; }
         .drag-handle:hover { color: var(--primary); }
 
-        .toggle-icon {
-            cursor: pointer; width: 20px; text-align: center;
-            font-weight: bold; user-select: none; transition: transform 0.2s;
-        }
+        .toggle-icon { cursor: pointer; width: 20px; text-align: center; font-weight: bold; user-select: none; transition: transform 0.2s; }
         .collapsed .toggle-icon { transform: rotate(-90deg); }
 
         .item-title { flex-grow: 1; font-weight: 600; min-width: 150px; }
-        .item-title input {
-            width: 100%; border: none; font-size: 1rem;
-            font-weight: 600; background: transparent;
-        }
+        .item-title input { width: 100%; border: none; font-size: 1rem; font-weight: 600; background: transparent; }
         .item-title input:focus { outline: none; border-bottom: 1px solid var(--primary); }
 
         .date-inputs { display: flex; gap: 5px; font-size: 0.85rem; color: #666; align-items: center; }
-        .date-inputs input {
-            border: 1px solid var(--border); border-radius: 4px;
-            padding: 2px 5px; font-family: inherit;
-        }
+        .date-inputs input { border: 1px solid var(--border); border-radius: 4px; padding: 2px 5px; font-family: inherit; }
 
         .progress-section { width: 100%; margin-top: 10px; padding-left: 30px; }
         .bars-container { display: flex; flex-direction: column; gap: 4px; margin-bottom: 5px; }
@@ -114,19 +96,23 @@
         
         .progress-controls { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.9rem; color: #555; }
         .progress-controls input[type="range"] { flex-grow: 1; cursor: pointer; }
+        
+        /* 鎖定狀態的樣式 */
+        .progress-controls.locked input[type="range"] { cursor: not-allowed; opacity: 0.5; }
+        .locked-badge { font-size: 0.8rem; color: #999; margin-left: 5px; display: flex; align-items: center; gap: 4px; }
+
         .progress-input-group { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
         .num-input { width: 60px; padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: bold; }
         .current-input { color: var(--success); border-color: var(--success); }
         .target-input { color: #555; }
+        
+        /* 鎖定的輸入框 */
+        .num-input:disabled { background-color: var(--disabled-bg); color: #888; border-color: #ddd; }
 
         .stats-text { font-size: 0.8rem; display: flex; justify-content: space-between; color: #666; margin-bottom: 2px; }
 
-        /* 增加一點間距讓拖曳進去比較容易 */
         .children-container {
-            border-top: 1px solid var(--border);
-            background-color: #f9fafb;
-            padding: 15px 10px 15px 30px; 
-            min-height: 5px; /* 確保沒有子項目時也能拖進去 */
+            border-top: 1px solid var(--border); background-color: #f9fafb; padding: 15px 10px 15px 30px; min-height: 5px;
         }
         .hidden { display: none; }
         .badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: #eee; }
@@ -137,13 +123,8 @@
             background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;
         }
         .modal.open { display: flex; }
-        .modal-content {
-            background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;
-        }
-        .modal-content input {
-            width: 100%; padding: 8px; margin: 10px 0;
-            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
-        }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; }
+        .modal-content input { width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         .help-text { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
     </style>
 </head>
@@ -165,9 +146,7 @@
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <h3>GitHub 同步設定</h3>
-        <p class="help-text">
-            <a href="https://github.com/settings/tokens" target="_blank">👉 取得 Token (需勾選 'gist')</a>
-        </p>
+        <p class="help-text"><a href="https://github.com/settings/tokens" target="_blank">👉 取得 Token (需勾選 'gist')</a></p>
         <label>GitHub Token:</label>
         <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
         <label>Gist ID (選填):</label>
@@ -185,15 +164,23 @@
     let gistId = localStorage.getItem('gistId') || '';
     const GIST_FILENAME = 'my_learning_tracker.json';
 
-    // --- Init ---
     async function init() {
         const localData = localStorage.getItem('learningData');
-        if (localData) {
-            parseAndLoadData(localData);
-        } else {
+        if (localData) parseAndLoadData(localData);
+        else {
             appData.items = [{
-                id: Date.now(), title: "範例：學習目標 (試著拖曳我)", startDate: new Date().toISOString().split('T')[0],
-                endDate: new Date().toISOString().split('T')[0], current: 0, target: 100, isCollapsed: false, children: []
+                id: Date.now(), title: "範例：主項目 (自動計算)", startDate: new Date().toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0], current: 0, target: 100, isCollapsed: false,
+                children: [
+                    {
+                        id: Date.now() + 1, title: "子項目 1 (試著改我)", startDate: new Date().toISOString().split('T')[0],
+                        endDate: new Date().toISOString().split('T')[0], current: 20, target: 50, isCollapsed: false, children: []
+                    },
+                    {
+                        id: Date.now() + 2, title: "子項目 2 (試著改我)", startDate: new Date().toISOString().split('T')[0],
+                        endDate: new Date().toISOString().split('T')[0], current: 10, target: 50, isCollapsed: false, children: []
+                    }
+                ]
             }];
             render();
         }
@@ -210,20 +197,38 @@
             };
             if (Array.isArray(parsed)) appData.items = parsed;
             else appData = parsed;
-            
             appData.items.forEach(migrateItem);
             render();
         } catch (e) { console.error(e); }
     }
 
-    // --- Sync Logic (Standard) ---
+    // --- Auto Calculation Logic ---
+    // 遞迴計算所有父項目的數值
+    function recalculateTotals(items) {
+        let totalCurrent = 0;
+        let totalTarget = 0;
+
+        items.forEach(item => {
+            if (item.children && item.children.length > 0) {
+                // 如果有子項目，先去算子項目的總和
+                const childTotals = recalculateTotals(item.children);
+                // 強制覆蓋父項目的數值
+                item.current = childTotals.current;
+                item.target = childTotals.target;
+            }
+            totalCurrent += item.current;
+            totalTarget += item.target;
+        });
+
+        return { current: totalCurrent, target: totalTarget };
+    }
+
+    // --- Standard Logic ---
     async function syncFromCloud() {
         if (!githubToken || !gistId) return;
         updateStatus("下載中...", "blue");
         try {
-            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-                headers: { 'Authorization': `token ${githubToken}` }
-            });
+            const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: { 'Authorization': `token ${githubToken}` } });
             if (!res.ok) throw new Error('Error');
             const json = await res.json();
             const fileContent = json.files[GIST_FILENAME]?.content;
@@ -236,6 +241,8 @@
     }
 
     async function syncToCloud() {
+        // 在存檔前，確保所有數值都經過正確計算
+        recalculateTotals(appData.items);
         localStorage.setItem('learningData', JSON.stringify(appData));
         if (!githubToken) return;
         updateStatus("上傳中...", "orange");
@@ -243,13 +250,8 @@
             let url = 'https://api.github.com/gists';
             let method = 'POST';
             const payload = { files: { [GIST_FILENAME]: { content: JSON.stringify(appData, null, 2) } } };
-            if (gistId) { url += `/${gistId}`; method = 'PATCH'; } 
-            else { payload.description = "Tracker Data"; payload.public = false; }
-            
-            const res = await fetch(url, {
-                method: method, headers: { 'Authorization': `token ${githubToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            if (gistId) { url += `/${gistId}`; method = 'PATCH'; } else { payload.description = "Tracker Data"; payload.public = false; }
+            const res = await fetch(url, { method: method, headers: { 'Authorization': `token ${githubToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('Error');
             const json = await res.json();
             if (!gistId) { gistId = json.id; localStorage.setItem('gistId', gistId); document.getElementById('gistId').value = gistId; }
@@ -263,12 +265,7 @@
         el.style.color = color === 'red' ? '#ef4444' : (color === 'green' ? '#10b981' : '#666');
     }
 
-    // --- Settings UI ---
-    function openSettings() {
-        document.getElementById('githubToken').value = githubToken;
-        document.getElementById('gistId').value = gistId;
-        document.getElementById('settingsModal').classList.add('open');
-    }
+    function openSettings() { document.getElementById('settingsModal').classList.add('open'); document.getElementById('githubToken').value = githubToken; document.getElementById('gistId').value = gistId; }
     function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
     async function saveSettings() {
         githubToken = document.getElementById('githubToken').value.trim();
@@ -279,7 +276,6 @@
         if (gistId) await syncFromCloud(); else await syncToCloud();
     }
 
-    // --- Render & Logic ---
     function calculateTimeProgress(start, end) {
         if (!start || !end) return 0;
         const startDate = new Date(start);
@@ -294,8 +290,7 @@
 
     function renderList(items) {
         if (!items) return '';
-        let html = '<ul class="item-list">'; // Root or nested list
-        
+        let html = '<ul class="item-list">';
         items.forEach(item => {
             let percentage = 0;
             if (item.target > 0) percentage = Math.min(100, Math.max(0, (item.current / item.target) * 100));
@@ -304,8 +299,13 @@
             const isBehind = timeProgress > percentage + 5;
             const timeClass = isBehind ? 'time-overdue' : 'time-fill';
             const behindBadge = isBehind ? `<span class="badge badge-danger">落後</span>` : '';
+            
+            // 判斷是否為父項目 (有子項目)
+            const isParent = item.children && item.children.length > 0;
+            const disabledAttr = isParent ? 'disabled' : '';
+            const lockedClass = isParent ? 'locked' : '';
+            const lockedLabel = isParent ? '<span class="locked-badge">🔒 自動計算</span>' : '';
 
-            // data-id 屬性非常重要，用於拖曳後重建資料
             html += `
             <li class="item-node ${item.isCollapsed ? 'collapsed' : ''}" data-id="${item.id}">
                 <div class="item-header">
@@ -339,15 +339,20 @@
                             <span>完成: ${percentage.toFixed(0)}% ${behindBadge}</span>
                             <span>時間: ${Math.round(timeProgress)}%</span>
                         </div>
-                        <div class="progress-controls">
+                        <div class="progress-controls ${lockedClass}">
                             <input type="range" min="0" max="${item.target}" value="${item.current}" 
                                 oninput="updateItem(${item.id}, 'current', this.value)" 
-                                onchange="updateItem(${item.id}, 'current', this.value, true)">
+                                onchange="updateItem(${item.id}, 'current', this.value, true)"
+                                ${disabledAttr}>
+                            
                             <div class="progress-input-group">
-                                <input type="number" class="num-input current-input" value="${item.current}" onchange="updateItem(${item.id}, 'current', this.value, true)">
+                                <input type="number" class="num-input current-input" value="${item.current}" 
+                                    onchange="updateItem(${item.id}, 'current', this.value, true)" ${disabledAttr}>
                                 <span>/</span>
-                                <input type="number" class="num-input target-input" value="${item.target}" onchange="updateItem(${item.id}, 'target', this.value, true)">
+                                <input type="number" class="num-input target-input" value="${item.target}" 
+                                    onchange="updateItem(${item.id}, 'target', this.value, true)" ${disabledAttr}>
                             </div>
+                            ${lockedLabel}
                         </div>
                     </div>
                 </div>
@@ -360,62 +365,40 @@
         return html;
     }
 
-    function render() { 
-        document.getElementById('mainTitle').value = appData.title;
-        const app = document.getElementById('app');
-        app.innerHTML = renderList(appData.items);
+    function render() {
+        // 在渲染前，執行一次全域計算
+        recalculateTotals(appData.items);
         
-        // 渲染完後，初始化拖曳功能
+        document.getElementById('mainTitle').value = appData.title;
+        document.getElementById('app').innerHTML = renderList(appData.items);
         initSortable();
     }
 
-    // --- SortableJS Logic (Drag & Drop) ---
     function initSortable() {
-        // 找到所有的 .item-list (包含最外層和所有子層)
         const nestedSortables = document.querySelectorAll('.item-list');
-
         nestedSortables.forEach(el => {
             new Sortable(el, {
-                group: 'nested', // 允許跨列表拖曳
-                handle: '.drag-handle', // 只能拉手把
-                animation: 150,
-                fallbackOnBody: true,
-                swapThreshold: 0.65,
-                onEnd: function (evt) {
-                    // 拖曳結束後，從 DOM 重建資料結構
-                    updateDataFromDOM();
-                }
+                group: 'nested', handle: '.drag-handle', animation: 150, fallbackOnBody: true, swapThreshold: 0.65,
+                onEnd: function (evt) { updateDataFromDOM(); }
             });
         });
     }
 
     function updateDataFromDOM() {
-        // 1. 先把現有資料扁平化存入 Map，以免屬性丟失
         const itemMap = new Map();
-        const flatten = (items) => {
-            items.forEach(item => {
-                itemMap.set(String(item.id), item);
-                if (item.children) flatten(item.children);
-            });
-        };
+        const flatten = (items) => { items.forEach(item => { itemMap.set(String(item.id), item); if (item.children) flatten(item.children); }); };
         flatten(appData.items);
 
-        // 2. 從 DOM 讀取新的樹狀結構
         const buildFromDOM = (ulElement) => {
             const newItems = [];
-            const liElements = ulElement.children; // 直接子節點
-            
+            const liElements = ulElement.children;
             for (let li of liElements) {
                 if (li.tagName !== 'LI') continue;
                 const id = li.getAttribute('data-id');
                 const originalItem = itemMap.get(id);
-                
                 if (originalItem) {
-                    // 找這個 LI 底下的 children-container > ul
                     const childContainer = li.querySelector('.children-container');
                     const childUl = childContainer ? childContainer.querySelector('ul') : null;
-                    
-                    // 遞迴讀取子項目
                     originalItem.children = childUl ? buildFromDOM(childUl) : [];
                     newItems.push(originalItem);
                 }
@@ -426,17 +409,14 @@
         const rootUl = document.querySelector('#app > ul');
         if (rootUl) {
             appData.items = buildFromDOM(rootUl);
-            // 存檔並同步
+            // 拖曳結束後，結構改變，需要重新計算父子數值歸屬
+            recalculateTotals(appData.items);
             syncToCloud();
-            // 不重新 render，避免畫面閃爍，因為 DOM 已經是正確的樣子了
-            // 但需要確保收合狀態的 toggle icon 正確 (如果把子項目拖光了，父項目應該變圓點)
-            // 簡單起見，我們稍後手動觸發一次 render 也是可以的，或是這裡做局部更新
-            // 為了保險，延遲重新 render 確保數據與畫面一致
-            setTimeout(render, 50); 
+            // 延遲渲染以確保視覺更新
+            setTimeout(render, 50);
         }
     }
 
-    // --- Helper & CRUD ---
     function findItem(items, id, callback) {
         for (let i = 0; i < items.length; i++) {
             if (items[i].id === id) { callback(items[i], items, i); return true; }
@@ -448,20 +428,14 @@
     function updateMainTitle(newTitle) { appData.title = newTitle; syncToCloud(); }
 
     function addItem() {
-        appData.items.push({
-            id: Date.now(), title: "新目標", startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0], current: 0, target: 100, isCollapsed: false, children: []
-        });
+        appData.items.push({ id: Date.now(), title: "新目標", startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], current: 0, target: 100, isCollapsed: false, children: [] });
         syncToCloud(); render();
     }
 
     function addChild(parentId) {
         findItem(appData.items, parentId, (parent) => {
             if (!parent.children) parent.children = [];
-            parent.children.push({
-                id: Date.now(), title: "新子項目", startDate: parent.startDate,
-                endDate: parent.endDate, current: 0, target: 100, isCollapsed: false, children: []
-            });
+            parent.children.push({ id: Date.now(), title: "新子項目", startDate: parent.startDate, endDate: parent.endDate, current: 0, target: 100, isCollapsed: false, children: [] });
             parent.isCollapsed = false;
         });
         syncToCloud(); render();
@@ -477,14 +451,13 @@
                 item[field] = val;
             } else { item[field] = value; }
         });
+        // 這裡不需要手動 call recalculateTotals，因為 render() 裡面會自動做
         render(); 
         if (shouldSync) syncToCloud();
     }
 
     function deleteItem(id) {
         if(!confirm('刪除？')) return;
-        // 這裡需要修改刪除邏輯，因為拖曳後資料結構可能變了
-        // 用遞迴刪除最保險
         const deleteRecursively = (items) => {
             for (let i = 0; i < items.length; i++) {
                 if (items[i].id === id) { items.splice(i, 1); return true; }
