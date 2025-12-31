@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>年度學習追蹤 (GitHub Sync版)</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --time-bar: #9ca3af;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; }
+
+        .btn-group { display: flex; gap: 10px; }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-github { background-color: #24292e; color: white; }
+        .btn-github:hover { background-color: #333; }
+        .btn-sm { padding: 4px 8px; font-size: 0.8rem; margin-left: 5px; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: #666; }
+        .btn-danger { background: #fee2e2; color: var(--danger); }
+
+        /* Sync Status */
+        #sync-status {
+            font-size: 0.85rem;
+            margin-right: 10px;
+            color: #666;
+        }
+
+        /* 項目卡片樣式 */
+        .item-list { list-style: none; padding: 0; }
+        
+        .item-node {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .item-header {
+            padding: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-icon {
+            cursor: pointer;
+            width: 20px;
+            text-align: center;
+            font-weight: bold;
+            user-select: none;
+            transition: transform 0.2s;
+        }
+        .collapsed .toggle-icon { transform: rotate(-90deg); }
+
+        .item-title { flex-grow: 1; font-weight: 600; min-width: 150px; }
+        .item-title input {
+            width: 100%; border: none; font-size: 1rem;
+            font-weight: 600; background: transparent;
+        }
+
+        .date-inputs { display: flex; gap: 5px; font-size: 0.85rem; color: #666; }
+        .date-inputs input {
+            border: 1px solid var(--border); border-radius: 4px;
+            padding: 2px 5px; font-family: inherit;
+        }
+
+        /* 進度條 */
+        .progress-section { width: 100%; margin-top: 10px; padding-left: 30px; }
+        .bars-container { display: flex; flex-direction: column; gap: 4px; margin-bottom: 5px; }
+        .bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; transition: width 0.5s ease; }
+        .progress-fill { background-color: var(--success); }
+        .time-fill { background-color: var(--time-bar); opacity: 0.6; }
+        .time-overdue { background-color: var(--danger); opacity: 0.8; }
+        
+        .stats-text { font-size: 0.8rem; display: flex; justify-content: space-between; color: #666; }
+        .slider-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+        input[type=range] { flex-grow: 1; cursor: pointer; }
+
+        .children-container {
+            border-top: 1px solid var(--border);
+            background-color: #f9fafb;
+            padding: 10px 10px 10px 30px;
+        }
+        .hidden { display: none; }
+        .badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: #eee; }
+        .badge-danger { background: #fee2e2; color: var(--danger); }
+
+        /* Modal for Settings */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;
+        }
+        .modal-content input {
+            width: 100%; padding: 8px; margin: 10px 0;
+            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
+        }
+        .help-text { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>📅 2025 學習追蹤</h1>
+        <div class="btn-group">
+            <span id="sync-status"></span>
+            <button class="btn-github" onclick="openSettings()">☁️ GitHub 設定</button>
+            <button class="btn-primary" onclick="addItem()">+ 新增項目</button>
+        </div>
+    </header>
+
+    <div id="app"></div>
+</div>
+
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <h3>GitHub 同步設定</h3>
+        <p class="help-text">
+            設定 Token 後，資料將自動備份到您的 GitHub Gist。
+            <br><a href="https://github.com/settings/tokens" target="_blank">👉 點此取得 Personal Access Token (需勾選 'gist')</a>
+        </p>
+        <label>GitHub Token:</label>
+        <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+        
+        <label>Gist ID (選填，若無則自動建立):</label>
+        <input type="text" id="gistId" placeholder="自動生成...">
+
+        <div style="text-align: right; margin-top: 10px;">
+            <button class="btn-outline" onclick="closeSettings()">取消</button>
+            <button class="btn-primary" onclick="saveSettings()">儲存並同步</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 核心變數 ---
+    let data = [];
+    let githubToken = localStorage.getItem('githubToken') || '';
+    let gistId = localStorage.getItem('gistId') || '';
+    const GIST_FILENAME = 'my_learning_tracker.json';
+
+    // --- 初始化 ---
+    async function init() {
+        // 先嘗試從 LocalStorage 載入，讓使用者不用等
+        const localData = localStorage.getItem('learningData');
+        if (localData) {
+            data = JSON.parse(localData);
+            render();
+        } else {
+            // 預設資料
+            data = [{
+                id: Date.now(),
+                title: "範例任務",
+                startDate: new Date().toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0],
+                progress: 0,
+                isCollapsed: false,
+                children: []
+            }];
+            render();
+        }
+
+        // 如果有 Token，嘗試從雲端拉取最新資料
+        if (githubToken) {
+            await syncFromCloud();
+        }
+    }
+
+    // --- GitHub Sync Logic ---
+    
+    async function syncFromCloud() {
+        if (!githubToken || !gistId) return;
+        updateStatus("正在從 GitHub 下載...", "blue");
+
+        try {
+            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+                headers: { 'Authorization': `token ${githubToken}` }
+            });
+            
+            if (!res.ok) throw new Error('無法讀取 Gist');
+            
+            const json = await res.json();
+            const fileContent = json.files[GIST_FILENAME]?.content;
+            
+            if (fileContent) {
+                data = JSON.parse(fileContent);
+                localStorage.setItem('learningData', JSON.stringify(data));
+                render();
+                updateStatus("已與 GitHub 同步", "green");
+            }
+        } catch (e) {
+            console.error(e);
+            updateStatus("同步失敗，請檢查 Token", "red");
+        }
+    }
+
+    async function syncToCloud() {
+        // 先存本地
+        localStorage.setItem('learningData', JSON.stringify(data));
+        
+        if (!githubToken) return;
+        updateStatus("正在上傳至 GitHub...", "orange");
+
+        const payload = {
+            files: {
+                [GIST_FILENAME]: {
+                    content: JSON.stringify(data, null, 2)
+                }
+            }
+        };
+
+        try {
+            let url = 'https://api.github.com/gists';
+            let method = 'POST';
+
+            // 如果已有 ID，則更新 (PATCH)，否則新建 (POST)
+            if (gistId) {
+                url += `/${gistId}`;
+                method = 'PATCH';
+            } else {
+                payload.description = "My Learning Tracker Data";
+                payload.public = false; // 建立私有 Gist
+            }
+
+            const res = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error('上傳失敗');
+            
+            const json = await res.json();
+            
+            // 如果是第一次建立，保存 Gist ID
+            if (!gistId) {
+                gistId = json.id;
+                localStorage.setItem('gistId', gistId);
+                document.getElementById('gistId').value = gistId;
+            }
+
+            updateStatus("已儲存至 GitHub", "green");
+        } catch (e) {
+            console.error(e);
+            updateStatus("上傳失敗", "red");
+        }
+    }
+
+    function updateStatus(msg, color) {
+        const el = document.getElementById('sync-status');
+        el.innerText = msg;
+        el.style.color = color === 'red' ? '#ef4444' : (color === 'green' ? '#10b981' : '#666');
+    }
+
+    // --- Modal Logic ---
+    function openSettings() {
+        document.getElementById('githubToken').value = githubToken;
+        document.getElementById('gistId').value = gistId;
+        document.getElementById('settingsModal').classList.add('open');
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').classList.remove('open');
+    }
+
+    async function saveSettings() {
+        const tokenInput = document.getElementById('githubToken').value.trim();
+        const gistInput = document.getElementById('gistId').value.trim();
+
+        if (tokenInput) {
+            githubToken = tokenInput;
+            localStorage.setItem('githubToken', githubToken);
+        }
+        
+        if (gistInput) {
+            gistId = gistInput;
+            localStorage.setItem('gistId', gistId);
+        }
+
+        closeSettings();
+        
+        // 嘗試同步
+        if (gistId) await syncFromCloud(); // 有 ID 代表想讀取舊的
+        else await syncToCloud();        // 無 ID 代表想建立新的
+    }
+
+    // --- 原本的渲染與邏輯 ---
+    // (這部分邏輯與上一版幾乎相同，但加入了 syncToCloud)
+
+    const app = document.getElementById('app');
+
+    function calculateTimeProgress(start, end) {
+        if (!start || !end) return 0;
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const today = new Date();
+        if (today < startDate) return 0;
+        if (today > endDate) return 100;
+        const totalDuration = endDate - startDate;
+        const elapsed = today - startDate;
+        if (totalDuration <= 0) return 100;
+        return Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+    }
+
+    function renderList(items, parentId = null) {
+        if (items.length === 0) return '';
+        let html = '<ul class="item-list">';
+        items.forEach(item => {
+            const timeProgress = calculateTimeProgress(item.startDate, item.endDate);
+            const isBehind = timeProgress > item.progress + 5;
+            const timeClass = isBehind ? 'time-overdue' : 'time-fill';
+            const behindBadge = isBehind ? `<span class="badge badge-danger">落後</span>` : '';
+
+            html += `
+            <li class="item-node ${item.isCollapsed ? 'collapsed' : ''}" id="item-${item.id}">
+                <div class="item-header">
+                    <div class="toggle-icon" onclick="toggleItem(${item.id})">
+                        ${item.children && item.children.length > 0 ? '▼' : '●'}
+                    </div>
+                    <div class="item-title">
+                        <input type="text" value="${item.title}" onchange="updateItem(${item.id}, 'title', this.value)" placeholder="目標...">
+                    </div>
+                    <div class="date-inputs">
+                        <input type="date" value="${item.startDate}" onchange="updateItem(${item.id}, 'startDate', this.value)">
+                        <input type="date" value="${item.endDate}" onchange="updateItem(${item.id}, 'endDate', this.value)">
+                    </div>
+                    <div>
+                        <button class="btn-sm btn-outline" onclick="addChild(${item.id})">+子</button>
+                        <button class="btn-sm btn-danger" onclick="deleteItem(${item.id})">刪</button>
+                    </div>
+                    <div class="progress-section">
+                        <div class="bars-container">
+                            <div class="bar-wrapper"><div class="bar-fill progress-fill" style="width: ${item.progress}%"></div></div>
+                            <div class="bar-wrapper"><div class="bar-fill ${timeClass}" style="width: ${timeProgress}%"></div></div>
+                        </div>
+                        <div class="stats-text">
+                            <span>完成: ${item.progress}% ${behindBadge}</span>
+                            <span>時間: ${Math.round(timeProgress)}%</span>
+                        </div>
+                        <div class="slider-container">
+                            <input type="range" min="0" max="100" value="${item.progress}" onchange="updateItem(${item.id}, 'progress', this.value)">
+                        </div>
+                    </div>
+                </div>
+                <div class="children-container ${item.isCollapsed ? 'hidden' : ''}">
+                    ${renderList(item.children, item.id)}
+                </div>
+            </li>`;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    function render() { app.innerHTML = renderList(data); }
+
+    function findItem(items, id, callback) {
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].id === id) {
+                callback(items[i], items, i);
+                return true;
+            }
+            if (items[i].children && findItem(items[i].children, id, callback)) return true;
+        }
+        return false;
+    }
+
+    function addItem() {
+        data.push({
+            id: Date.now(), title: "新項目", startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0], progress: 0, isCollapsed: false, children: []
+        });
+        syncToCloud();
+        render();
+    }
+
+    function addChild(parentId) {
+        findItem(data, parentId, (parent) => {
+            parent.children.push({
+                id: Date.now(), title: "新子項目", startDate: parent.startDate,
+                endDate: parent.endDate, progress: 0, isCollapsed: false, children: []
+            });
+            parent.isCollapsed = false;
+        });
+        syncToCloud();
+        render();
+    }
+
+    function updateItem(id, field, value) {
+        findItem(data, id, (item) => {
+            if (field === 'progress') item[field] = parseInt(value);
+            else item[field] = value;
+        });
+        syncToCloud(); // 每次修改都嘗試同步
+        render();
+    }
+
+    function deleteItem(id) {
+        if(!confirm('確定刪除？')) return;
+        const deleteRecursively = (items) => {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === id) { items.splice(i, 1); return true; }
+                if (items[i].children && deleteRecursively(items[i].children)) return true;
+            }
+        };
+        deleteRecursively(data);
+        syncToCloud();
+        render();
+    }
+
+    function toggleItem(id) {
+        findItem(data, id, (item) => { item.isCollapsed = !item.isCollapsed; });
+        // 摺疊狀態只存本地，不一定需要頻繁 Sync，但為了簡單這裡也 Sync
+        syncToCloud();
+        render();
+    }
+
+    // 啟動
+    init();
+
+</script>
+</body>
+</html>
